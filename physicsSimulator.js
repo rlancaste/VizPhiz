@@ -1,3 +1,12 @@
+/**
+    PhysicsSimulator.js,  part of the VizPhiz Simulator
+    Copyright (C) 2020 Robert Lancaster <rlancaste@gmail.com>
+    This script is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public
+    License as published by the Free Software Foundation; either
+    version 3 of the License, or (at your option) any later version.
+**/
+
 /*eslint-env browser*/
 /*jslint devel: true */
 /* global Matter Chart */
