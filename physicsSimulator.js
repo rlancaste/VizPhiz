@@ -849,6 +849,26 @@ function getSavedObjectState(id, fr) {
 
 dragElement(bodyEditor);
 
+function updateConstraintReferenceAngles(){
+    var constraints = Matter.Composite.allConstraints(world);
+    constraints.forEach(function(constraint){
+        var bodyA = constraint.bodyA,
+            bodyB = constraint.bodyB,
+            pointA = constraint.pointA,
+            pointB = constraint.pointB;
+        
+        if (bodyA && !isFixed(bodyA)) {
+            Vector.rotate(pointA, bodyA.angle - constraint.angleA, pointA);
+            constraint.angleA = bodyA.angle;
+        }
+        
+        if (bodyB && !isFixed(bodyB)) {
+            Vector.rotate(pointB, bodyB.angle - constraint.angleB, pointB);
+            constraint.angleB = bodyB.angle;
+        }
+
+    });
+}
 
 function getMousePos(evt) {
 	var rect = render.canvas.getBoundingClientRect();
@@ -1207,6 +1227,7 @@ resetButton.addEventListener('click', function() {
 			Matter.Body.setAngularVelocity(body, state.omega);
 		}
 	}
+    updateConstraintReferenceAngles();
     graphWindows.forEach(function(graphWindow){
         graphWindow.graph.data.datasets.forEach(function(dataset) {
 			dataset.data = [];
@@ -1275,6 +1296,7 @@ function timeChanged() {
 			Matter.Body.setAngularVelocity(body, state.omega);
 		}
 	}
+    updateConstraintReferenceAngles();
 	graphWindows.forEach(function(graphWindow){
 		var graph = graphWindow.graph;
         var t = time / 1000.0;
@@ -1781,6 +1803,10 @@ function loadBodyDetails(body) {
         addInputToBodyDetails("X (m)", roundOffDecimals(displayPos.x));
         addInputToBodyDetails("Y (m)", roundOffDecimals(displayPos.y));
     }
+    addTextToDetails("Size:");
+    var bounds = currentBody.bounds;
+    addInputToBodyDetails("width (m)", roundOffDecimals(bounds.max.x - bounds.min.x));
+    addInputToBodyDetails("height (m)", roundOffDecimals(bounds.max.y - bounds.min.y));
     addTextToDetails("Velocity:");
 	var displayVel = VectorFromMatter(body.velocity);
 	addInputToBodyDetails("Vx (m/s)", roundOffDecimals(displayVel.x));
@@ -1799,6 +1825,7 @@ function loadBodyDetails(body) {
     addInputToBodyDetails("Rot Inertia", roundOffDecimals(body.inertia));
     addTextToDetails("Internal Properties:")
     addInputToBodyDetails("m (kg)", roundOffDecimals(body.mass));
+    addInputToBodyDetails("density", roundOffDecimals(body.density));
 	addInputToBodyDetails("restitution", roundOffDecimals(body.restitution));
     addCheckBoxToBodyDetails("fixed", isFixed(body));
     addTextToDetails("Friction:");
@@ -1840,19 +1867,28 @@ function addInputToBodyDetails(property, value) {
 			state.y = matterPos.y;
 		}
         
-        var vxEdit = propertyEditors[3];
-        var vyEdit = propertyEditors[4];
+        var widthEdit = propertyEditors[3];
+        var heightEdit = propertyEditors[4];
+        
+		if (event.currentTarget === widthEdit || event.currentTarget ===  heightEdit) { //Size
+            var bounds = currentBody.bounds;
+            var xScale = Number(widthEdit.value)/(bounds.max.x - bounds.min.x);
+            var yScale = Number(heightEdit.value)/(bounds.max.y - bounds.min.y);
+           Matter.Body.scale(currentBody,xScale, yScale, currentBody.position);
+		}
+        
+        var vxEdit = propertyEditors[5];
+        var vyEdit = propertyEditors[6];
         
 		if (event.currentTarget === vxEdit || event.currentTarget === vyEdit) { //Velocity
             var matterVel = VectorToMatter(Matter.Vector.create(Number(vxEdit.value), Number(vyEdit.value)));
 			Matter.Body.setVelocity(currentBody, matterVel);
 			state.Vx = matterVel.x;
 			state.Vy = matterVel.y;
-            loadBodyDetails(currentBody);
 		}
         
-        var speedEdit = propertyEditors[5];
-        var thetaEdit = propertyEditors[6];
+        var speedEdit = propertyEditors[7];
+        var thetaEdit = propertyEditors[8];
         
 		if (event.currentTarget === speedEdit || event.currentTarget === thetaEdit) { //Velocity
             var speed = Number(speedEdit.value);
@@ -1861,7 +1897,6 @@ function addInputToBodyDetails(property, value) {
 			Matter.Body.setVelocity(currentBody, matterVel);
 			state.Vx = matterVel.x;
 			state.Vy = matterVel.y;
-            loadBodyDetails(currentBody);
 		}
 		
 		editorNum = 6;   
@@ -1880,12 +1915,12 @@ function addInputToBodyDetails(property, value) {
 			state.omega = angularVel;
 		}
         if (isItNextEditor()) //Moment of Inertia
-            if(Number(getEditorValue()) > 0){
-                currentBody.inertia = Number(getEditorValue());
-                currentBody.inverseInertia = 1 / Number(getEditorValue());
-            }
+            if(Number(getEditorValue()) > 0)
+                Matter.Body.setInertia(currentBody, Number(getEditorValue()));
         if (isItNextEditor()) //Mass
 			Matter.Body.setMass(currentBody, Number(getEditorValue()));
+        if (isItNextEditor()) //Mass
+			Matter.Body.setDensity(currentBody, Number(getEditorValue()));
 		if (isItNextEditor()) //Restitution
 			currentBody.restitution = Number(getEditorValue());
 		if (isItNextEditor()) //Kinetic friction
@@ -1903,6 +1938,7 @@ function addInputToBodyDetails(property, value) {
 		if (isItNextEditor()) //image scale y
 			currentBody.render.sprite.yScale =  Number(getEditorValue());
         
+        loadBodyDetails(currentBody);
 	});
 }
 
@@ -2037,11 +2073,22 @@ function loadConstraintDetails() {
     propertyCheckBoxes = [];
     addInputToConstraintDetails("label", currentConstraint.label);
     addTextToDetails("Constraint lengths:");
-	addInputToConstraintDetails("length", roundOffDecimals(currentConstraint.length));
+	addInputToConstraintDetails("eq. length", roundOffDecimals(currentConstraint.length));
+    var pointA = getPointALocation(currentConstraint);
+    var pointB = getPointBLocation(currentConstraint);
+    addInputToConstraintDetails("cur. length", roundOffDecimals(Matter.Vector.magnitude(Matter.Vector.sub(pointA,pointB))));
     addTextToDetails("Point A:");
+    var textA = "none";
+    if(currentConstraint.bodyA)
+        textA = currentConstraint.bodyA.id
+    var textB = "none";
+    if(currentConstraint.bodyB)
+        textB = currentConstraint.bodyB.id
+    addInputToConstraintDetails("object A", textA);
     addInputToConstraintDetails("Pt A x", roundOffDecimals(currentConstraint.pointA.x));
     addInputToConstraintDetails("Pt A y", roundOffDecimals(currentConstraint.pointA.y));
     addTextToDetails("Point B:");
+    addInputToConstraintDetails("object B", textB);
     addInputToConstraintDetails("Pt B x", roundOffDecimals(currentConstraint.pointB.x));
     addInputToConstraintDetails("Pt B y", roundOffDecimals(currentConstraint.pointB.y));
     addTextToDetails("Internal Properties:");
@@ -2058,12 +2105,32 @@ function addInputToConstraintDetails(property, value) {
 		
         if (isItNextEditor()) //The Label
 			currentConstraint.label = getEditorValue();
-		if (isItNextEditor()) //The Length
+		if (isItNextEditor()) //The Equilibrium Length
 			currentConstraint.length = Number(getEditorValue());
+        if (isItNextEditor()) //The Current Length
+			alert("Please move the anchor points to change the current length.");
+        if (isItNextEditor()){ //Object A
+            var oldObjectA = currentConstraint.bodyA;
+			var newObjectA = getBody(Number(getEditorValue()),Matter.Composite.allBodies(world));
+            if(!newObjectA && oldObjectA) //There was an old body and now there is a not one
+                currentConstraint.pointA = Matter.Vector.add(currentConstraint.pointA, oldObjectA.position);
+            if(newObjectA && !oldObjectA) //There was not an old body and now there is one
+                currentConstraint.pointA = Matter.Vector.sub(currentConstraint.pointA, newObjectA.position);
+            currentConstraint.bodyA = newObjectA;
+        }
         if (isItNextEditor()) //Pt A x
 			currentConstraint.pointA.x = Number(getEditorValue());
         if (isItNextEditor()) //Pt A y
 			currentConstraint.pointA.y = Number(getEditorValue());
+        if (isItNextEditor()){ //Object B
+            var oldObjectB = currentConstraint.bodyB;
+			var newObjectB = getBody(Number(getEditorValue()),Matter.Composite.allBodies(world));
+            if(!newObjectB && oldObjectB) //There was an old body and now there is a not one
+                currentConstraint.pointB = Matter.Vector.add(currentConstraint.pointB, oldObjectB.position);
+            if(newObjectB && !oldObjectB) //There was not an old body and now there is one
+                currentConstraint.pointB = Matter.Vector.sub(currentConstraint.pointB, newObjectB.position);
+            currentConstraint.bodyB = newObjectB;
+        }
         if (isItNextEditor()) //Pt B x
 			currentConstraint.pointB.x = Number(getEditorValue());
         if (isItNextEditor()) //Pt B y
@@ -2072,6 +2139,7 @@ function addInputToConstraintDetails(property, value) {
 			currentConstraint.damping = Number(getEditorValue());
         if (isItNextEditor()) //The Stiffness
 			currentConstraint.stiffness = Number(getEditorValue());
+        loadConstraintDetails();
 		
 	});
 }
