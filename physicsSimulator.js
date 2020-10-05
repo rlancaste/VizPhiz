@@ -1914,7 +1914,7 @@ function addInputToBodyDetails(property, value) {
 			state.Vy = matterVel.y;
 		}
 		
-		editorNum = 6;   
+		editorNum = 8;   
 		
 		if (isItNextEditor()) { //Theta
             if( currentBody == origin)
