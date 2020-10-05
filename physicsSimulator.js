@@ -2577,7 +2577,8 @@ Events.on(render, 'beforeRender', function() {
     if(running && vizPhizOptions.followObject){
         var bodies = Matter.Composite.allBodies(world);
         var objectToFollow = getBody(vizPhizOptions.followObject, bodies);
-        Matter.Render.lookAt(render, objectToFollow, {x:vizPhizOptions.followPadding, y:vizPhizOptions.followPadding}, true);
+        if(objectToFollow)
+            Matter.Render.lookAt(render, objectToFollow, {x:vizPhizOptions.followPadding, y:vizPhizOptions.followPadding}, true);
     }
 });
 
