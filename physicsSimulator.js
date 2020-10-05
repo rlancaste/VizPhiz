@@ -48,7 +48,9 @@ var vizPhizOptions = {
     numDecimals: 3,
     xCoordFlip: false,
     yCoordFlip: false,
-    advancedCalculationOptions: false
+    advancedCalculationOptions: false,
+    followObject: "",
+    followPadding: 100
 }
 
 var time = 0.0;
@@ -65,6 +67,7 @@ var currentGraph = null;
 
 var whichPoint = 0;
 var draggingBody = false;
+var draggingWorld = false;
 var draggingVelocity = false;
 
 //Variables for drawing objects
@@ -1250,6 +1253,8 @@ resetButton.addEventListener('click', function() {
     reset = true;
     if(!editing)
         editButton.click();
+    if(vizPhizOptions.followObject)
+            Matter.Render.lookAt(render, world, {x:vizPhizOptions.followPadding, y:vizPhizOptions.followPadding}, true);
 });
 
 window.addEventListener("resize", function(){
@@ -1408,13 +1413,19 @@ graphButton.addEventListener('click', function() {
 var rightClicking = false;
 // an example of using mouse events on a mouse
 Events.on(mouseConstraint, 'mousedown', function(event) {
+    var mousePosition = event.mouse.position;
+    if(ctrlPressed){
+        newW = mousePosition.x;
+        newH = mousePosition.y;
+        draggingWorld = true;
+        return;
+    }
 	if (running)
 		return;
     if( !reset ){
         //alert("Please hit the reset button before trying to edit.");
         return;
     }
-    var mousePosition = event.mouse.position;
     if (event.mouse.button === 2)
         rightClicking = true;
     if (mouseType > 0) {
@@ -1510,6 +1521,10 @@ Events.on(mouseConstraint, 'mousedown', function(event) {
 
 // an example of using mouse events on a mouse
 Events.on(mouseConstraint, 'mouseup', function(event) {
+    if(ctrlPressed){
+        draggingWorld = false;
+        return;
+    }
 	if (running || mouseType < 0)
 		return;
     if( !reset ){
@@ -1992,6 +2007,8 @@ function loadWorldDetails() {
     addTextToDetails("Tracking:");
 	addCheckBoxToWorldDetails("Show Track", vizPhizOptions.trackingON);
 	addInputToWorldDetails("track rate", vizPhizOptions.trackingFrameRate);
+    addInputToWorldDetails("Follow Object", vizPhizOptions.followObject);
+    addInputToWorldDetails("View Padding", vizPhizOptions.followPadding);
     addTextToDetails("World Looks:");
     addInputToWorldDetails("background", render.options.background);
     addCheckBoxToWorldDetails("wireframe", render.options.wireframes);
@@ -2026,8 +2043,6 @@ function addInputToWorldDetails(property, value) {
             if (isItNextEditor()) //A threshhold value used to calculate resting
                 Matter.Resolver._restingThresh = Number(getEditorValue());
         }
-        if (isItNextEditor()) //Tracking rate, 1 is every frame, 3 does every 3rd frame, etc
-			vizPhizOptions.trackingFrameRate = Number(getEditorValue());
         if (isItNextEditor()) //Scale Factor for Displaying Velocity Vectors
 			vizPhizOptions.velocityVectorScale = Number(getEditorValue());
         if (isItNextEditor()) //Color of Velocity Vectors
@@ -2036,6 +2051,12 @@ function addInputToWorldDetails(property, value) {
 			vizPhizOptions.forceVectorScale = Number(getEditorValue());
         if (isItNextEditor()) //Color of Force Vectors
 			vizPhizOptions.forceVectorColor = getEditorValue();
+        if (isItNextEditor()) //Tracking rate, 1 is every frame, 3 does every 3rd frame, etc
+			vizPhizOptions.trackingFrameRate = Number(getEditorValue());
+        if (isItNextEditor()) //Object to follow with the view
+			vizPhizOptions.followObject = Number(getEditorValue());
+        if (isItNextEditor()) //Padding around the Object being followed
+			vizPhizOptions.followPadding = Number(getEditorValue());
         if (isItNextEditor()) //The background color for the world
 			render.options.background = getEditorValue();
 		
@@ -2288,9 +2309,15 @@ function saveChildrensStates(parentComposite){
 
 //an example of using mouse events on a mouse
 Events.on(mouseConstraint, 'mousemove', function(event) {
+    var mousePosition = event.mouse.position;
+    if(ctrlPressed && draggingWorld){
+        var translate = Matter.Vector.sub({x:newW, y:newH}, mousePosition);
+        Bounds.translate(render.bounds, translate);
+        Mouse.setOffset(mouse, render.bounds.min);
+        return;
+    }
 	if (running)
 		return;
-	var mousePosition = event.mouse.position;
 	if (mouseType === moveMouse && draggingBody)
 	{
         if(currentForce){
@@ -2358,8 +2385,12 @@ Events.on(mouseConstraint, 'mousemove', function(event) {
 });
 
 var shiftPressed = false;
+var ctrlPressed = false;
 
 document.addEventListener('keydown', function (event) {
+    var ctrlKey = 17;
+    if (event.keyCode === ctrlKey)
+		ctrlPressed = true;
 	if (running)
 		return;
 	var deleteKey = 46,
@@ -2369,7 +2400,7 @@ document.addEventListener('keydown', function (event) {
 	
 	if (event.keyCode === shiftKey)
 		shiftPressed = true;
-	
+    
 	if ((event.keyCode === backspace || event.keyCode === deleteKey ) && bodyEditor.style.display === "none")
 	{
         if(currentBody){
@@ -2427,12 +2458,18 @@ document.addEventListener('keydown', function (event) {
 });
 
 document.addEventListener('keyup', function (event) {
+    var ctrlKey = 17;
+    if (event.keyCode === ctrlKey){
+		ctrlPressed = false;
+        draggingWorld = false;
+    }
 	if (running)
 		return;
 	var shiftKey = 16;
 	
 	if (event.keyCode === shiftKey)
 		shiftPressed = false;
+    
 });
 	
 var frame = 0;
@@ -2536,6 +2573,13 @@ Events.on(engine, 'collisionStart', function() {
     
 });
 **/
+Events.on(render, 'beforeRender', function() {
+    if(running && vizPhizOptions.followObject){
+        var bodies = Matter.Composite.allBodies(world);
+        var objectToFollow = getBody(vizPhizOptions.followObject, bodies);
+        Matter.Render.lookAt(render, objectToFollow, {x:vizPhizOptions.followPadding, y:vizPhizOptions.followPadding}, true);
+    }
+});
 
 Events.on(render, 'afterRender', function() {
     Render.startViewTransform(render);
