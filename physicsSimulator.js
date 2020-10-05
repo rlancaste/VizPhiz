@@ -149,6 +149,7 @@ var engine = Engine.create(),
         options: {
             width: window.innerWidth,
             height: window.innerHeight,
+            hasBounds: true,
             wireframes: false,
             showAngleIndicator: true,
             showVelocity: true,
@@ -175,7 +176,7 @@ runner.isFixed = true;
 runner.delta = 100;
 Runner.run(runner, engine);
 
-world.gravity.scale = 1 / (1000 * runner.delta);
+world.gravity.scale = 1 / 1000000.0 ;
 world.gravity.y = 9.8;
 
 // run the renderer
@@ -456,7 +457,7 @@ function plotData(graphWindow) {
 	var set = 0,
 	datasets = graphWindow.graph.data.datasets,
 	body = getBody(graphWindow.options.bodyID, Matter.Composite.allBodies(world)),
-	t = time / 1000.0;
+	t = roundOffDecimals(time);
     
     if(body === null)
         return;
@@ -1283,8 +1284,8 @@ function timeChanged() {
 	if (running)
 		return;
 	var fram = timeSlider.value;
-	time = timeSlider.value * runner.delta;
-	timeText.innerHTML = (time / 1000.0) + "s";
+	time = timeSlider.value * (runner.delta / 1000.0);
+	timeText.innerHTML = roundOffDecimals(time) + "s";
 	var bodies = Matter.Composite.allBodies(world);
 	for (var i=0; i<bodies.length; i+= 1) {
 		var body = bodies[i];
@@ -1299,10 +1300,9 @@ function timeChanged() {
     updateConstraintReferenceAngles();
 	graphWindows.forEach(function(graphWindow){
 		var graph = graphWindow.graph;
-        var t = time / 1000.0;
-		graph.options.annotation.annotations[0].value = t;
+		graph.options.annotation.annotations[0].value = roundOffDecimals(time);
 
-        graphWindow.graph.options.annotation.annotations[0].label.content = "time: " + t + " s";
+        graphWindow.graph.options.annotation.annotations[0].label.content = "time: " + roundOffDecimals(time) + " s";
 		graph.options.annotation.annotations[0].label.enabled = true;
         
         
@@ -1363,10 +1363,10 @@ runButton.addEventListener('click', function() {
 		if (timeSlider.value < timeSlider.max) {
 			clearSavedStatesAfterFrame(timeSlider.value);
 			clearGraphDataAfterFrame(timeSlider.value);
-			time = timeSlider.value * runner.delta;
+			time = timeSlider.value * (runner.delta / 1000.0);
 			frame = timeSlider.value;
 		}
-		engine.timing.timestamp = time;
+		engine.timing.timestamp = time * 1000.0;
         graphWindows.forEach(function(graphWindow){
 			graphWindow.graph.options.annotation.annotations[0].label.enabled = false;
         });
@@ -1377,7 +1377,7 @@ runButton.addEventListener('click', function() {
 		
 	}
 	else{
-		time = engine.timing.timestamp;
+		time = engine.timing.timestamp / 1000.0;
 		bodies.forEach(tack);
 		runButton.innerHTML = '<svg height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"> \
 									<line id="svg_1" y2="12" x2="20" y1="6" x1="6" stroke-width="2" stroke="white" fill="none"/> \
@@ -2014,7 +2014,7 @@ function addInputToWorldDetails(property, value) {
 		
 		if (isItNextEditor()){ //The timestep in the world animation
 			runner.delta = Number(getEditorValue() * 1000.0);
-            world.gravity.scale = 1 / (1000 * runner.delta); //This is necessary or gravity won't be calculated correctly
+            world.gravity.scale =  1 / 1000000.0; //This is necessary or gravity won't be calculated correctly
         }
         if(vizPhizOptions.advancedCalculationOptions){
             if (isItNextEditor()) //The number of times position is calculated per frame
@@ -2438,8 +2438,8 @@ document.addEventListener('keyup', function (event) {
 var frame = 0;
 Events.on(runner, 'beforeTick', function() {
 	if (running) {
-		time = engine.timing.timestamp;
-		timeText.innerHTML = (time / 1000.0) + "s";
+		time = engine.timing.timestamp / 1000.0;
+		timeText.innerHTML = roundOffDecimals(time) + "s";
 		var bodies = Matter.Composite.allBodies(world);
 		if (bodies.length > 1) {
 			for (var i=0; i<bodies.length; i+= 1)
@@ -2463,7 +2463,6 @@ Events.on(runner, 'beforeTick', function() {
 });
 
 function drawVector(x, y, Vx, Vy, color){
-            Render.startViewTransform(render);
             pen.lineWidth = 2;
             pen.beginPath();
             pen.fillStyle = color;
@@ -2487,12 +2486,10 @@ function drawVector(x, y, Vx, Vy, color){
             pen.lineTo(x4, y4);
             pen.lineTo(x2, y2);
             pen.stroke();
-            pen.fill();
-            Render.endViewTransform(render);      
+            pen.fill();    
 }
 
 function drawFatVector(x, y, Vx, Vy, color){
-            Render.startViewTransform(render);
             pen.lineWidth = 2;
             pen.beginPath();
             pen.fillStyle = color;
@@ -2527,8 +2524,7 @@ function drawFatVector(x, y, Vx, Vy, color){
             pen.lineTo(x4, y4);
             pen.lineTo(x2, y2);
             pen.stroke();
-            pen.fill();
-            Render.endViewTransform(render);      
+            pen.fill();    
 }
 /**
 Events.on(engine, 'collisionStart', function() {
@@ -2542,11 +2538,12 @@ Events.on(engine, 'collisionStart', function() {
 **/
 
 Events.on(render, 'afterRender', function() {
+    Render.startViewTransform(render);
     var constraints = Matter.Composite.allConstraints(world);
     var bodies = Matter.Composite.allBodies(world);
     
 	//Draw Origin
-    Render.startViewTransform(render);
+    
     pen.fillStyle = "white";
     pen.strokeStyle = "white";
     pen.font = "15px Arial";
@@ -2560,10 +2557,8 @@ Events.on(render, 'afterRender', function() {
     pen.strokeText("Y", yLabelPos.x, yLabelPos.y);
     pen.stroke();
     pen.fill();
-    Render.endViewTransform(render);
     
 	if (vizPhizOptions.showGrid) {
-		Render.startViewTransform(render);
 		pen.globalAlpha = 0.1;
 		pen.beginPath();
 		pen.strokeStyle = "white";
@@ -2591,7 +2586,6 @@ Events.on(render, 'afterRender', function() {
 		}
 		pen.stroke();
 		pen.globalAlpha = 1;
-		Render.endViewTransform(render);
 	}
 	
 	if (vizPhizOptions.trackingON) {
@@ -2609,7 +2603,6 @@ Events.on(render, 'afterRender', function() {
                 for (var fram = 0; fram < tmax - 1; fram += vizPhizOptions.trackingFrameRate) {
                     var state = getSavedObjectState(body.id, fram);
                     if (state != null) {
-                        Render.startViewTransform(render);
                         if(image){
                             pen.translate(state.x, state.y);
                             pen.rotate(state.theta);
@@ -2635,19 +2628,17 @@ Events.on(render, 'afterRender', function() {
                             pen.globalAlpha = 0.2;
                             pen.fill();
                         }
-                        Render.endViewTransform(render);
 
-                        Render.startViewTransform(render);
                         pen.globalAlpha = 0.2;
                         pen.strokeStyle = "white";
                         if(render.options.showVelocity)
                             drawVector(state.x,state.y,state.Vx * vizPhizOptions.velocityVectorScale, state.Vy * vizPhizOptions.velocityVectorScale, vizPhizOptions.velocityVectorColor);
                         pen.globalAlpha = 1;
-                        Render.endViewTransform(render);
                     }
                 }	
             }
 		}
+        
         //We have to draw these things because they should be in front of tracking
         Render.bodies(render, bodies, pen);
         Render.bodyAxes(render, bodies, pen);
@@ -2658,13 +2649,11 @@ Events.on(render, 'afterRender', function() {
 	}
     if(vizPhizOptions.showLabels)
         bodies.forEach(function(body){
-            Render.startViewTransform(render);
             pen.beginPath();
             pen.strokeStyle = "green";
             pen.font = "20px Georgia";
             pen.strokeText(body.label, body.position.x + 5, body.bounds.min.y - 10);
-            pen.stroke();
-            Render.endViewTransform(render);     
+            pen.stroke();   
         });
     
     forces.forEach(function(force){
@@ -2677,7 +2666,6 @@ Events.on(render, 'afterRender', function() {
         });
     
     fixedBodies.forEach(function(fixedBody){
-		Render.startViewTransform(render);
         
 		pen.beginPath();
 		pen.strokeStyle = "red";
@@ -2685,11 +2673,9 @@ Events.on(render, 'afterRender', function() {
 		pen.strokeText("X", fixedBody.position.x - 3, fixedBody.position.y + 4);
 		pen.rect(fixedBody.position.x - 7, fixedBody.position.y - 7, 15, 15);
 		pen.stroke();
-		Render.endViewTransform(render);
 	});
 	if (draggingBody) 
         if (currentForce) {
-            Render.startViewTransform(render);
             pen.beginPath();
             pen.strokeStyle = "red";
             body = getBody(currentForce.bodyID, bodies);
@@ -2699,9 +2685,7 @@ Events.on(render, 'afterRender', function() {
             pen.strokeText("Force: " + roundOffDecimals(displayForce.x) + " N x, " + roundOffDecimals(displayForce.y) + " N y", currentForce.position.x + body.position.x + 5, currentForce.position.y + body.bounds.max.y + 20);
             drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, currentForce.force.x * vizPhizOptions.forceVectorScale, currentForce.force.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
             pen.stroke();
-            Render.endViewTransform(render);
         } else if (shiftPressed) {
-			Render.startViewTransform(render);
 			pen.fillStyle = currentBody.render.fillStyle;
 			pen.strokeStyle = "white";
 			pen.lineWidth = 2;
@@ -2725,9 +2709,7 @@ Events.on(render, 'afterRender', function() {
 			pen.globalAlpha = 0.2;
 			pen.fill();
 			pen.globalAlpha = 1;
-			Render.endViewTransform(render);
 		} else if (rightClicking) {
-			Render.startViewTransform(render);
 			pen.fillStyle = currentBody.render.fillStyle;
 			pen.strokeStyle = "white";
 			pen.lineWidth = 2;
@@ -2752,9 +2734,7 @@ Events.on(render, 'afterRender', function() {
 			pen.fill();
 			pen.globalAlpha = 1;
             pen.strokeText("Size: " + roundOffDecimals(w) + " m, " + roundOffDecimals(h) + " m", currentBody.position.x + 5, currentBody.bounds.max.y + 20);
-			Render.endViewTransform(render);
 		} else if(currentBody){
-			Render.startViewTransform(render);
 			pen.lineWidth = 2;
 			pen.beginPath();
 			pen.strokeStyle = "red";
@@ -2762,9 +2742,7 @@ Events.on(render, 'afterRender', function() {
             var displayPos = PosVectorFromMatter(currentBody.position);
 			pen.strokeText("Position: " + roundOffDecimals(displayPos.x) + " m x, " + roundOffDecimals(displayPos.y) + " m y", currentBody.position.x + 5, currentBody.bounds.max.y + 20);
 			pen.stroke();
-			Render.endViewTransform(render);
 		} else if(currentConstraintPoint){
-			Render.startViewTransform(render);
 			pen.lineWidth = 2;
 			pen.beginPath();
 			pen.strokeStyle = "red";
@@ -2772,11 +2750,9 @@ Events.on(render, 'afterRender', function() {
             displayPos = PosVectorFromMatter(currentConstraintPoint);
 			pen.strokeText("Position: " + roundOffDecimals(displayPos.x) + " m x, " + roundOffDecimals(displayPos.y) + " m y", currentConstraintPoint.x + 5, currentConstraintPoint.y + 20);
 			pen.stroke();
-			Render.endViewTransform(render);
 		}
 	//end draggingbody
     if(draggingVelocity){
-        Render.startViewTransform(render);
         pen.lineWidth = 2;
         pen.beginPath();
         pen.strokeStyle = "red";
@@ -2784,10 +2760,8 @@ Events.on(render, 'afterRender', function() {
         var displayVel = VectorFromMatter(currentBody.velocity);
         pen.strokeText("Velocity: " + roundOffDecimals(displayVel.x) + " m/s x, " + roundOffDecimals(displayVel.y) + " m/s y", currentBody.position.x + 5, currentBody.bounds.max.y + 20);
         pen.stroke();
-        Render.endViewTransform(render);
     }
 	if (newObject) {
-		Render.startViewTransform(render);
         pen.lineWidth = 2;
 		pen.fillStyle = "yellow";
 		pen.strokeStyle = "yellow";
@@ -2823,10 +2797,8 @@ Events.on(render, 'afterRender', function() {
 		pen.stroke();
 		pen.fill();
 		pen.globalAlpha = 1;
-        Render.endViewTransform(render);
     }
     if (currentConstraint && currentConstraintPoint) {
-		Render.startViewTransform(render);
 		pen.beginPath();
 		pen.strokeStyle = "yellow";
         pen.rect(currentConstraintPoint.x - 5, currentConstraintPoint.y - 5, 10, 10);
@@ -2835,10 +2807,8 @@ Events.on(render, 'afterRender', function() {
         pen.moveTo(pointA.x, pointA.y);
         pen.lineTo(pointB.x, pointB.y)
 		pen.stroke();
-		Render.endViewTransform(render);
 	}
 	if (currentBody) {
-		Render.startViewTransform(render);
 		pen.beginPath();
 		pen.strokeStyle = "yellow";
 		var bounds = currentBody.bounds;
@@ -2846,18 +2816,15 @@ Events.on(render, 'afterRender', function() {
 		h = bounds.max.y - bounds.min.y;
 		pen.rect(currentBody.position.x - w/2, currentBody.position.y - h/2, w, h);
 		pen.stroke();
-		Render.endViewTransform(render);
 	}
     if (currentForce) {
-		Render.startViewTransform(render);
 		pen.beginPath();
 		pen.strokeStyle = "yellow";
         body = getBody(currentForce.bodyID, bodies);
         drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, currentForce.force.x * vizPhizOptions.forceVectorScale, currentForce.force.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
 		pen.stroke();
-		Render.endViewTransform(render);
 	}
-    /**
+
     graphWindows.forEach(function(graphWindow){
         if (graphWindow === currentGraph) {
             graphWindow.style.border.width = "1px";
@@ -2867,20 +2834,17 @@ Events.on(render, 'afterRender', function() {
            graphWindow.style.border.color = "black";
         }
     });
-    **/
+    
+     Render.endViewTransform(render);
+
 });
-/**
+
  // get the centre of the viewport
     var viewportCentre = {
         x: render.options.width * 0.5,
         y: render.options.height * 0.5
     };
 
-    // make the world bounds a little bigger than the render bounds
-    world.bounds.min.x = -300;
-    world.bounds.min.y = -300;
-    world.bounds.max.x = 1100;
-    world.bounds.max.y = 900;
 
     // keep track of current bounds scale (view zoom)
     var boundsScaleTarget = 1,
@@ -2915,10 +2879,13 @@ Events.on(render, 'afterRender', function() {
             render.bounds.max.x = render.bounds.min.x + render.options.width * boundsScale.x;
             render.bounds.max.y = render.bounds.min.y + render.options.height * boundsScale.y;
 
-            // translate so zoom is from centre of view
+             // get vector from mouse relative to centre of viewport
+            var deltaCentre = Vector.sub(mouse.absolute, viewportCentre);
+            
+            // translate so zoom is from centre of mouse position
             translate = {
-                x: render.options.width * scaleFactor * -0.5,
-                y: render.options.height * scaleFactor * -0.5
+                x: (render.options.width * 0.5 + deltaCentre.x)  * -scaleFactor,
+                y: (render.options.height * 0.5 + deltaCentre.y)  * -scaleFactor
             };
 
             Bounds.translate(render.bounds, translate);
@@ -2927,38 +2894,5 @@ Events.on(render, 'afterRender', function() {
             Mouse.setScale(mouse, boundsScale);
             Mouse.setOffset(mouse, render.bounds.min);
         }
-
-        // get vector from mouse relative to centre of viewport
-        var deltaCentre = Vector.sub(mouse.absolute, viewportCentre),
-            centreDist = Vector.magnitude(deltaCentre);
-
-        // translate the view if mouse has moved over 50px from the centre of viewport
-        if (centreDist > 50) {
-            // create a vector to translate the view, allowing the user to control view speed
-            var direction = Vector.normalise(deltaCentre),
-                speed = Math.min(10, Math.pow(centreDist - 50, 2) * 0.0002);
-
-            translate = Vector.mult(direction, speed);
-
-            // prevent the view moving outside the world bounds
-            if (render.bounds.min.x + translate.x < world.bounds.min.x)
-                translate.x = world.bounds.min.x - render.bounds.min.x;
-
-            if (render.bounds.max.x + translate.x > world.bounds.max.x)
-                translate.x = world.bounds.max.x - render.bounds.max.x;
-
-            if (render.bounds.min.y + translate.y < world.bounds.min.y)
-                translate.y = world.bounds.min.y - render.bounds.min.y;
-
-            if (render.bounds.max.y + translate.y > world.bounds.max.y)
-                translate.y = world.bounds.max.y - render.bounds.max.y;
-
-            // move the view
-            Bounds.translate(render.bounds, translate);
-
-            // we must update the mouse too
-            Mouse.setOffset(mouse, render.bounds.min);
-        }
     });
 
-**/
