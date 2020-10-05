@@ -2824,16 +2824,6 @@ Events.on(render, 'afterRender', function() {
         drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, currentForce.force.x * vizPhizOptions.forceVectorScale, currentForce.force.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
 		pen.stroke();
 	}
-
-    graphWindows.forEach(function(graphWindow){
-        if (graphWindow === currentGraph) {
-            graphWindow.style.border.width = "1px";
-            graphWindow.style.border.color = "yellow";
-        } else{
-           graphWindow.style.border.width = "1px";
-           graphWindow.style.border.color = "black";
-        }
-    });
     
      Render.endViewTransform(render);
 
