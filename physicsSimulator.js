@@ -1652,7 +1652,7 @@ Events.on(mouseConstraint, 'mouseup', function(event) {
 document.addEventListener('dblclick', function(event) {
 	if (running)
 		return;
-    var mousePosition = getMousePos(event);
+    var mousePosition = mouse.position;
     if (event.target === bodyEditor || bodyEditor.contains(event.target))
         return;
     if (event.target === mainToolbar || mainToolbar.contains(event.target))
