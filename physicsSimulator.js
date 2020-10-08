@@ -768,6 +768,7 @@ function GraphWindow(bodyID) {
             alert("Please hit the reset button before trying to edit properties.");
             return;
         }
+        measuringWorld = false;
         if(!editing)
             editButton.click();
         if (mouseType != moveMouse)
@@ -1325,8 +1326,11 @@ resetButton.addEventListener('click', function() {
 	timeText.innerHTML = 0 + "s";
 	frame = 0;
     reset = true;
+    measuringWorld = false;
     if(!editing)
         editButton.click();
+    if(mouseType != moveMouse)
+        newButtons[0].click();
     if(vizPhizOptions.followObject)
             Matter.Render.lookAt(render, world, {x:vizPhizOptions.followPadding, y:vizPhizOptions.followPadding}, true);
 });
@@ -1751,6 +1755,7 @@ document.addEventListener('dblclick', function(event) {
         alert("Please hit the reset button before trying to edit properties.");
         return;
     }
+    measuringWorld = false;
     if(!editing)
         editButton.click();
 	if (mouseType != moveMouse)
