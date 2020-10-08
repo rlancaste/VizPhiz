@@ -768,7 +768,6 @@ function GraphWindow(bodyID) {
             alert("Please hit the reset button before trying to edit properties.");
             return;
         }
-        measuringWorld = false;
         if(!editing)
             editButton.click();
         if (mouseType != moveMouse)
