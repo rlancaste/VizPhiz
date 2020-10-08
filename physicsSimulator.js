@@ -1549,7 +1549,8 @@ Events.on(mouseConstraint, 'mousedown', function(event) {
         for(var f = 0; f < forces.length; f++){
             var force = forces[f];
             var body = getBody(force.bodyID, bodies);
-            if(mouseNearPoint(mousePosition, Matter.Vector.create(force.position.x + body.position.x + force.force.x * vizPhizOptions.forceVectorScale, force.position.y + body.position.y + force.force.y * vizPhizOptions.forceVectorScale))){
+            var drawForce = convertFromMatterTimeScale(force.force);
+            if(mouseNearPoint(mousePosition, Matter.Vector.create(force.position.x + body.position.x + drawForce.x * vizPhizOptions.forceVectorScale, force.position.y + body.position.y + drawForce.y * vizPhizOptions.forceVectorScale))){
                 currentForce = force;
                 draggingBody = true;
                 currentBody = null;
@@ -1695,7 +1696,8 @@ Events.on(mouseConstraint, 'mouseup', function(event) {
         return;
     }
     if (mouseType === forceMouse) {
-        forces.push(new Force(currentBody, newX - currentBody.position.x, newY - currentBody.position.y, newW / vizPhizOptions.forceVectorScale, newH / vizPhizOptions.forceVectorScale ));
+        var force = convertToMatterTimeScale(Vector.create(newW / vizPhizOptions.forceVectorScale, newH / vizPhizOptions.forceVectorScale ));
+        forces.push(new Force(currentBody, newX - currentBody.position.x, newY - currentBody.position.y, force.x, force.y ));
         newButtons[0].click();
         return;
     }
@@ -1767,7 +1769,8 @@ document.addEventListener('dblclick', function(event) {
     for(var f = 0; f < forces.length; f++){
             var force = forces[f];
             var body = getBody(force.bodyID, Matter.Composite.allBodies(world));
-            if(mouseNearPoint(mousePosition, Matter.Vector.create(force.position.x + body.position.x + force.force.x * vizPhizOptions.forceVectorScale, force.position.y + body.position.y + force.force.y * vizPhizOptions.forceVectorScale))){
+            var drawForce = convertFromMatterTimeScale(force.force)
+            if(mouseNearPoint(mousePosition, Matter.Vector.create(force.position.x + body.position.x + drawForce.x * vizPhizOptions.forceVectorScale, force.position.y + body.position.y + drawForce.y * vizPhizOptions.forceVectorScale))){
                 loadForceDetails(force);
                 bodyEditor.style.left = event.clientX + "px";
                 bodyEditor.style.top = event.clientY + "px";
@@ -2163,6 +2166,9 @@ function addInputToWorldDetails(property, value) {
                 state.Vy = body.velocity.y;
                 state.omega = body.omega;
             });
+            forces.forEach(function(force){
+                force.force = Vector.mult(force.force, changeDelta);
+            });
         }
         if(vizPhizOptions.advancedCalculationOptions){
             if (isItNextEditor()) //The number of times position is calculated per frame
@@ -2304,7 +2310,7 @@ function loadForceDetails() {
 	propertyEditors = [];
     propertyCheckBoxes = [];
     var displayPos = VectorFromMatter(currentForce.position);
-    var displayForce = VectorFromMatter(currentForce.force);
+    var displayForce = convertFromMatterVelocity(currentForce.force);
     addTextToDetails("Position of Force:");
     addInputToForceDetails("x", displayPos.x);
     addInputToForceDetails("y", displayPos.y);
@@ -2319,7 +2325,7 @@ function addInputToForceDetails(property, value) {
 		if (event.currentTarget === propertyEditors[0] || event.currentTarget === propertyEditors[1]) //Position
             currentForce.position = VectorToMatter(Matter.Vector.create(Number(propertyEditors[0].value), Number(propertyEditors[1].value)));
 		if (event.currentTarget === propertyEditors[2] || event.currentTarget === propertyEditors[3])  //Force
-            currentForce.force = VectorToMatter(Matter.Vector.create(Number(propertyEditors[2].value), Number(propertyEditors[3].value)));
+            currentForce.force = convertToMatterVelocity(Matter.Vector.create(Number(propertyEditors[2].value), Number(propertyEditors[3].value)));
 	});
 }
 
@@ -2460,8 +2466,8 @@ Events.on(mouseConstraint, 'mousemove', function(event) {
 	{
         if(currentForce){
             var body = getBody(currentForce.bodyID, Matter.Composite.allBodies(world));
-            currentForce.force.x = (mousePosition.x - (body.position.x + currentForce.position.x)) / vizPhizOptions.forceVectorScale;
-            currentForce.force.y = (mousePosition.y - (body.position.y + currentForce.position.y)) / vizPhizOptions.forceVectorScale;
+            var forceFromScreen = Vector.div(Vector.sub(mousePosition, Vector.add(body.position, currentForce.position)), vizPhizOptions.forceVectorScale);
+            currentForce.force = convertToMatterTimeScale(forceFromScreen);
         }
        else if(currentConstraintPoint)
             setConstraintPointLocation(mousePosition);
@@ -2632,7 +2638,7 @@ Events.on(runner, 'beforeTick', function() {
 		}
         forces.forEach(function(force){
             var body = getBody(force.bodyID, bodies);
-            Matter.Body.applyForce(body, Matter.Vector.add(force.position, body.position), Matter.Vector.create(force.force.x / (1000 * runner.delta), force.force.y / (1000 * runner.delta)));
+            Matter.Body.applyForce(body, Matter.Vector.add(force.position, body.position), Vector.div(force.force, runner.delta * 1000.0));
         });
 	}
 });
@@ -2845,7 +2851,8 @@ Events.on(render, 'afterRender', function() {
     
     forces.forEach(function(force){
             var body = getBody(force.bodyID, bodies);
-            drawFatVector(force.position.x + body.position.x, force.position.y + body.position.y, force.force.x * vizPhizOptions.forceVectorScale, force.force.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor);      
+            var drawForce = convertFromMatterTimeScale(force.force)
+            drawFatVector(force.position.x + body.position.x, force.position.y + body.position.y, drawForce.x * vizPhizOptions.forceVectorScale, drawForce.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor);      
     });
     if(render.options.showVelocity)
         bodies.forEach(function(body){
@@ -2870,9 +2877,10 @@ Events.on(render, 'afterRender', function() {
             body = getBody(currentForce.bodyID, bodies);
             pen.strokeStyle = "red";
             pen.font = "20px Georgia";
-            var displayForce = VectorFromMatter(currentForce.force);
+            var displayForce = convertFromMatterVelocity(currentForce.force);
+            var drawForce = convertFromMatterTimeScale(currentForce.force);
             pen.strokeText("Force: " + roundOffDecimals(displayForce.x) + " N x, " + roundOffDecimals(displayForce.y) + " N y", currentForce.position.x + body.position.x + 5, currentForce.position.y + body.bounds.max.y + 20);
-            drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, currentForce.force.x * vizPhizOptions.forceVectorScale, currentForce.force.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
+            drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, drawForce.x * vizPhizOptions.forceVectorScale, drawForce.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
             pen.stroke();
         } else if (shiftPressed) {
 			pen.fillStyle = currentBody.render.fillStyle;
@@ -2982,7 +2990,7 @@ Events.on(render, 'afterRender', function() {
             drawFatVector(newX,newY, newW, newH, vizPhizOptions.forceVectorColor);
             pen.strokeStyle = "red";
             pen.font = "20px Georgia";
-            displayForce = VectorFromMatter(Matter.Vector.create(newW / vizPhizOptions.forceVectorScale, newH / vizPhizOptions.forceVectorScale));
+            displayForce = VectorToMatter(Matter.Vector.create(newW / vizPhizOptions.forceVectorScale, newH / vizPhizOptions.forceVectorScale));
             pen.strokeText("Force: " + roundOffDecimals(displayForce.x) + "N x, " + roundOffDecimals(displayForce.y) + "N y", newX + 5, currentBody.bounds.max.y + 20);
         }
         pen.globalAlpha = 0.3;
@@ -3013,7 +3021,8 @@ Events.on(render, 'afterRender', function() {
 		pen.beginPath();
 		pen.strokeStyle = "yellow";
         body = getBody(currentForce.bodyID, bodies);
-        drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, currentForce.force.x * vizPhizOptions.forceVectorScale, currentForce.force.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
+        var drawForce = convertFromMatterTimeScale(currentForce.force);
+        drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, drawForce.x * vizPhizOptions.forceVectorScale, drawForce.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
 		pen.stroke();
 	}
     if (measuringWorld){
