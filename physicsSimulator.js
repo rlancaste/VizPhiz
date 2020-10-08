@@ -2163,7 +2163,7 @@ function addInputToWorldDetails(property, value) {
                 var state = getInitialState(body.id);
                 state.Vx = body.velocity.x;
                 state.Vy = body.velocity.y;
-                state.omega = body.omega;
+                state.omega = body.angularVelocity;
             });
             forces.forEach(function(force){
                 force.force = Vector.mult(force.force, changeDelta);
