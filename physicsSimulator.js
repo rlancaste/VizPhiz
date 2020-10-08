@@ -41,16 +41,17 @@ var vizPhizOptions = {
     showGrid: false,
     trackingON: true,
     trackingFrameRate: 3,
-    velocityVectorScale: 3,
+    velocityVectorScale: 1,
     velocityVectorColor: "yellow",
-    forceVectorScale: 5,
+    forceVectorScale: 2,
     forceVectorColor: "green",
     numDecimals: 3,
     xCoordFlip: false,
     yCoordFlip: false,
     advancedCalculationOptions: false,
     followObject: "",
-    followPadding: 100
+    followPadding: 100,
+    useDegrees: true
 }
 
 var time = 0.0;
@@ -69,6 +70,7 @@ var whichPoint = 0;
 var draggingBody = false;
 var draggingWorld = false;
 var draggingVelocity = false;
+var measuringWorld = false;
 
 //Variables for drawing objects
 var mouseType = -1;
@@ -97,6 +99,7 @@ var carMouse = 5;
 var conMouse = 6;
 var jointMouse = 7;
 var forceMouse = 8;
+var measureMouse = 9;
 
 var newButtons = [];
 newButtons.push(document.getElementById("btn-move"));
@@ -108,6 +111,7 @@ newButtons.push(document.getElementById("btn-car"));
 newButtons.push(document.getElementById("btn-con"));
 newButtons.push(document.getElementById("btn-joint"));
 newButtons.push(document.getElementById("btn-force"));
+newButtons.push(document.getElementById("btn-measure"));
 
 for (var num = 0; num < newButtons.length; num+= 1)
 	newButtons[num].addEventListener('click', function(event) {
@@ -215,6 +219,16 @@ initialObjectStates.push(new createSavedState(origin.id, 0, origin.position.x, o
 trackingStates.push(new createTrackingState(origin.id));
 fixedBodies.push(origin);
 
+//Giving Math the ability to convert to Radians
+Math.toRadians = function(degrees) {
+	return degrees * Math.PI / 180;
+}
+
+//Giving Math the ability to convert to Degrees
+Math.toDegrees = function(radians) {
+	return radians * 180 / Math.PI;
+}
+
 
 function GridPosVectorToMatter(p){
    var p1 = Matter.Vector.rotate(p, -origin.angle);
@@ -273,6 +287,34 @@ function VectorFromMatter(v){
     return v2;
 }
 
+function convertToMatterVelocity(v){
+    v = VectorToMatter(v);
+    v = convertToMatterTimeScale(v);
+    return v;
+}
+
+function convertFromMatterVelocity(v){
+    v = VectorFromMatter(v);
+    v = convertFromMatterTimeScale(v);
+    return v;
+}
+
+function convertToMatterTimeScale(v){
+    return Vector.mult(v, (runner.delta / 1000.0));
+}
+
+function convertFromMatterTimeScale(v){
+    return Vector.div(v, runner.delta / 1000.0);
+}
+
+function convertScalarToMatterTimeScale(s){
+    return s * (runner.delta / 1000.0);
+}
+
+function convertScalarFromMatterTimeScale(s){
+    return s / (runner.delta / 1000.0);
+}
+
 function PosAngleToMatter(angle){
     if((!vizPhizOptions.xCoordFlip && !vizPhizOptions.yCoordFlip) || (vizPhizOptions.xCoordFlip && vizPhizOptions.yCoordFlip))
          angle = -angle;
@@ -296,6 +338,20 @@ function AngleToMatter(angle){
 function AngleFromMatter(angle){
     if((!vizPhizOptions.xCoordFlip && !vizPhizOptions.yCoordFlip) || (vizPhizOptions.xCoordFlip && vizPhizOptions.yCoordFlip))
          angle = -angle;
+    return angle;
+}
+
+function AngVToMatter(angle){
+    if((!vizPhizOptions.xCoordFlip && !vizPhizOptions.yCoordFlip) || (vizPhizOptions.xCoordFlip && vizPhizOptions.yCoordFlip))
+         angle = -angle;
+    angle = convertScalarToMatterTimeScale(angle);
+    return angle;
+}
+
+function AngVFromMatter(angle){
+    if((!vizPhizOptions.xCoordFlip && !vizPhizOptions.yCoordFlip) || (vizPhizOptions.xCoordFlip && vizPhizOptions.yCoordFlip))
+         angle = -angle;
+    angle = convertScalarFromMatterTimeScale(angle);
     return angle;
 }
 
@@ -342,10 +398,17 @@ function resetDataSets() {
 		datasets.push(new DataSet('Ay', 'm/s/s'));
      if (currentGraph.options.graphA)
 		datasets.push(new DataSet('|A|', 'm/s/s'));
-     if (currentGraph.options.graphTheta)
-		datasets.push(new DataSet('\u03B8', 'rad'));
-     if (currentGraph.options.graphOmega)
-		datasets.push(new DataSet('\u03C9', 'rad/s'));
+     if(vizPhizOptions.useDegrees){
+         if (currentGraph.options.graphTheta)
+            datasets.push(new DataSet('\u03B8', 'deg'));
+         if (currentGraph.options.graphOmega)
+            datasets.push(new DataSet('\u03C9', 'deg/s'));
+     } else{
+         if (currentGraph.options.graphTheta)
+            datasets.push(new DataSet('\u03B8', 'rad'));
+         if (currentGraph.options.graphOmega)
+            datasets.push(new DataSet('\u03C9', 'rad/s'));
+     }
      if (currentGraph.options.graphPx)
 		datasets.push(new DataSet('px', 'kg*m/s'));
      if (currentGraph.options.graphPy)
@@ -362,10 +425,17 @@ function resetDataSets() {
         yAxisTitle += "Velocity (m/s) ";
     if(currentGraph.options.graphAx || currentGraph.options.graphAy || currentGraph.options.graphA)
         yAxisTitle += "Acceleration (m/s/s) ";
-    if (currentGraph.options.graphTheta)
-		yAxisTitle += "Angular Position (rad) ";
-     if (currentGraph.options.graphOmega)
-		yAxisTitle += "Angular Velocity (rad/s) ";
+    if(vizPhizOptions.useDegrees){
+         if (currentGraph.options.graphTheta)
+            yAxisTitle += "Angular Position (deg) ";
+         if (currentGraph.options.graphOmega)
+            yAxisTitle += "Angular Velocity (deg/s) ";
+    } else{
+         if (currentGraph.options.graphTheta)
+            yAxisTitle += "Angular Position (rad) ";
+         if (currentGraph.options.graphOmega)
+            yAxisTitle += "Angular Velocity (rad/s) ";
+    }
     if(currentGraph.options.graphPx || currentGraph.options.graphPy || currentGraph.options.graphP)
         yAxisTitle += "Momentum (kg*m/s) ";
     
@@ -491,16 +561,20 @@ function plotData(graphWindow) {
     }
     if (graphWindow.options.graphTheta){
         var display = PosAngleFromMatter(body.angle);
+        if(vizPhizOptions.useDegrees)
+            display = Math.toDegrees(display);
         datasets[set].data.push({x: t, y: roundOffDecimals(display)});
         set += 1;
     }
     if (graphWindow.options.graphOmega){
-        var display = AngleFromMatter(body.angularVelocity);
+        var display = AngVFromMatter(body.angularVelocity);
+        if(vizPhizOptions.useDegrees)
+            display = Math.toDegrees(display);
         datasets[set].data.push({x: t, y: roundOffDecimals(display)});
         set += 1;
     }
     if (graphWindow.options.graphVx || graphWindow.options.graphVy || graphWindow.options.graphV){
-        var displayVel = VectorFromMatter(body.velocity);
+        var displayVel = convertFromMatterVelocity(body.velocity);
         if (graphWindow.options.graphVx) {
             datasets[set].data.push({x: t, y: roundOffDecimals(displayVel.x)});
             set += 1;
@@ -523,7 +597,7 @@ function plotData(graphWindow) {
             var previousVelocity = Matter.Vector.create(state.Vx, state.Vy);
         }
         
-        var deltaV = Matter.Vector.sub(VectorFromMatter(body.velocity), VectorFromMatter(previousVelocity));
+        var deltaV = Matter.Vector.sub(convertFromMatterVelocity(body.velocity), convertFromMatterVelocity(previousVelocity));
         var displayAccel = Matter.Vector.div(deltaV, runner.delta / 1000);
         
         if (graphWindow.options.graphAx) {
@@ -540,7 +614,7 @@ function plotData(graphWindow) {
         }
     }
     if (graphWindow.options.graphPx || graphWindow.options.graphPy || graphWindow.options.graphP){
-        var displayMom = Matter.Vector.mult(VectorFromMatter(body.velocity), body.mass);
+        var displayMom = Matter.Vector.mult(convertFromMatterVelocity(body.velocity), body.mass);
         if (graphWindow.options.graphPx) {
             datasets[set].data.push({x: t, y: roundOffDecimals(displayMom.x)});
             set += 1;
@@ -1414,6 +1488,14 @@ var rightClicking = false;
 // an example of using mouse events on a mouse
 Events.on(mouseConstraint, 'mousedown', function(event) {
     var mousePosition = event.mouse.position;
+    if(mouseType == measureMouse){
+        newX = mousePosition.x;
+        newY = mousePosition.y;
+        newW = mousePosition.x;
+        newH = mousePosition.y;
+        measuringWorld = true;
+        return;
+    }
     if(ctrlPressed){
         newW = mousePosition.x;
         newH = mousePosition.y;
@@ -1448,7 +1530,9 @@ Events.on(mouseConstraint, 'mousedown', function(event) {
         var bodies = Matter.Composite.allBodies(world);
         draggingVelocity = false;
         bodies.forEach(function(body){
-            if(mouseNearPoint(mousePosition,  Matter.Vector.create(body.position.x + body.velocity.x * vizPhizOptions.velocityVectorScale, body.position.y + body.velocity.y * vizPhizOptions.velocityVectorScale))){
+            var bodyvel = convertFromMatterTimeScale(body.velocity);
+            bodyvel = Vector.mult(bodyvel, vizPhizOptions.velocityVectorScale);
+            if(mouseNearPoint(mousePosition,  Matter.Vector.create(body.position.x + bodyvel.x, body.position.y + bodyvel.y))){
                 currentBody = body;
                 draggingVelocity = true;
                 currentForce = null;
@@ -1521,6 +1605,10 @@ Events.on(mouseConstraint, 'mousedown', function(event) {
 
 // an example of using mouse events on a mouse
 Events.on(mouseConstraint, 'mouseup', function(event) {
+    if(mouseType == measureMouse){
+        measuringWorld = false;
+        return;
+    }
     if(ctrlPressed){
         draggingWorld = false;
         return;
@@ -1823,20 +1911,28 @@ function loadBodyDetails(body) {
     addInputToBodyDetails("width (m)", roundOffDecimals(bounds.max.x - bounds.min.x));
     addInputToBodyDetails("height (m)", roundOffDecimals(bounds.max.y - bounds.min.y));
     addTextToDetails("Velocity:");
-	var displayVel = VectorFromMatter(body.velocity);
+	var displayVel = convertFromMatterVelocity(body.velocity);
 	addInputToBodyDetails("Vx (m/s)", roundOffDecimals(displayVel.x));
 	addInputToBodyDetails("Vy (m/s)", roundOffDecimals(displayVel.y));
     addInputToBodyDetails("Speed (m/s)", roundOffDecimals(Math.hypot(displayVel.x,displayVel.y)));
-	addInputToBodyDetails("\u03B8 (deg)", roundOffDecimals(Math.atan2(displayVel.y,displayVel.x) * 180/Math.PI));
-	
+    if(vizPhizOptions.useDegrees)
+        addInputToBodyDetails("\u03B8 (deg)", roundOffDecimals(Math.toDegrees(Math.atan2(displayVel.y,displayVel.x))));
+    else
+        addInputToBodyDetails("\u03B8 (rad)", roundOffDecimals(Math.atan2(displayVel.y,displayVel.x)));
     if(body == origin)
         var angle = AngleFromMatter(body.angle);
     else
         var angle = PosAngleFromMatter(body.angle);
-    var angularVel =  AngleFromMatter(body.angularVelocity);
+    var angularVel =  AngVFromMatter(body.angularVelocity);
     addTextToDetails("Rotation:");
-	addInputToBodyDetails("" + '\u03B8' + " (rad)", roundOffDecimals(angle));
-	addInputToBodyDetails("" + '\u03C9'+ " (rad/s)", roundOffDecimals(angularVel));
+    if(vizPhizOptions.useDegrees){
+        addInputToBodyDetails("" + '\u03B8' + " (deg)", roundOffDecimals(Math.toDegrees(angle)));
+        addInputToBodyDetails("" + '\u03C9'+ " (deg/s)", roundOffDecimals(Math.toDegrees(angularVel)));
+    }else{
+        addInputToBodyDetails("" + '\u03B8' + " (rad)", roundOffDecimals(angle));
+        addInputToBodyDetails("" + '\u03C9'+ " (rad/s)", roundOffDecimals(angularVel));
+    }
+	
     addInputToBodyDetails("Rot Inertia", roundOffDecimals(body.inertia));
     addTextToDetails("Internal Properties:")
     addInputToBodyDetails("m (kg)", roundOffDecimals(body.mass));
@@ -1896,7 +1992,7 @@ function addInputToBodyDetails(property, value) {
         var vyEdit = propertyEditors[6];
         
 		if (event.currentTarget === vxEdit || event.currentTarget === vyEdit) { //Velocity
-            var matterVel = VectorToMatter(Matter.Vector.create(Number(vxEdit.value), Number(vyEdit.value)));
+            var matterVel = convertToMatterVelocity(Matter.Vector.create(Number(vxEdit.value), Number(vyEdit.value)));
 			Matter.Body.setVelocity(currentBody, matterVel);
 			state.Vx = matterVel.x;
 			state.Vy = matterVel.y;
@@ -1907,8 +2003,12 @@ function addInputToBodyDetails(property, value) {
         
 		if (event.currentTarget === speedEdit || event.currentTarget === thetaEdit) { //Velocity
             var speed = Number(speedEdit.value);
-            var theta = Number(thetaEdit.value) * Math.PI / 180;
-            var matterVel = VectorToMatter(Matter.Vector.create(speed * Math.cos(theta), speed * Math.sin(theta)));
+            var theta;
+            if(vizPhizOptions.useDegrees)
+                theta = Math.toRadians(Number(thetaEdit.value));
+            else
+                theta = Number(thetaEdit.value);
+            var matterVel = convertToMatterVelocity(Matter.Vector.create(speed * Math.cos(theta), speed * Math.sin(theta)));
 			Matter.Body.setVelocity(currentBody, matterVel);
 			state.Vx = matterVel.x;
 			state.Vy = matterVel.y;
@@ -1917,15 +2017,24 @@ function addInputToBodyDetails(property, value) {
 		editorNum = 8;   
 		
 		if (isItNextEditor()) { //Theta
-            if( currentBody == origin)
-                var angle = AngleToMatter(Number(getEditorValue()));
+            var angle;
+            if(vizPhizOptions.useDegrees)
+                angle = Math.toRadians(Number(getEditorValue()));
             else
-                var angle = PosAngleToMatter(Number(getEditorValue()));
+                angle = Number(getEditorValue());
+            if( currentBody == origin)
+                var angle = AngleToMatter(angle);
+            else
+                var angle = PosAngleToMatter(angle);
 			Matter.Body.setAngle(currentBody, angle);
 			state.theta = angle;
 		}
 		if (isItNextEditor()) { //Omega
-            var angularVel = AngleToMatter(Number(getEditorValue()));
+            var angularVel;
+            if(vizPhizOptions.useDegrees)
+                angularVel = AngVToMatter(Math.toRadians(Number(getEditorValue())));
+            else
+                angularVel = AngVToMatter(Number(getEditorValue()));
 			Matter.Body.setAngularVelocity(currentBody, angularVel);
 			state.omega = angularVel;
 		}
@@ -2015,6 +2124,7 @@ function loadWorldDetails() {
     addCheckBoxToWorldDetails("show IDs", render.options.showIds);
 	addCheckBoxToWorldDetails("show grid", vizPhizOptions.showGrid);
     addCheckBoxToWorldDetails("show labels", vizPhizOptions.showLabels);
+    addCheckBoxToWorldDetails("Use Degrees", vizPhizOptions.useDegrees);
 	
 }
 
@@ -2030,8 +2140,24 @@ function addInputToWorldDetails(property, value) {
 			world.gravity.y = Number(getEditorValue());
 		
 		if (isItNextEditor()){ //The timestep in the world animation
+            if(Number(getEditorValue()) <= 0){
+                loadWorldDetails();
+                return;
+            }
+            var oldDelta = runner.delta;
 			runner.delta = Number(getEditorValue() * 1000.0);
+            var changeDelta = runner.delta / oldDelta;
             world.gravity.scale =  1 / 1000000.0; //This is necessary or gravity won't be calculated correctly
+            //All the velocities need to be converted for the different timescale?
+            var bodies = Matter.Composite.allBodies(world);
+            bodies.forEach(function(body){
+                Matter.Body.setVelocity(body, Matter.Vector.mult(body.velocity, changeDelta));
+                Matter.Body.setAngularVelocity(body, body.angularVelocity * changeDelta);
+                var state = getInitialState(body.id);
+                state.Vx = body.velocity.x;
+                state.Vy = body.velocity.y;
+                state.omega = body.omega;
+            });
         }
         if(vizPhizOptions.advancedCalculationOptions){
             if (isItNextEditor()) //The number of times position is calculated per frame
@@ -2084,6 +2210,8 @@ function addCheckBoxToWorldDetails(property, value) {
 			vizPhizOptions.showGrid = isCheckBoxChecked();
         if (isItNextCheckBox()) //Shows gridlines for clarity
 			vizPhizOptions.showLabels = isCheckBoxChecked();
+         if (isItNextCheckBox()) //Toggles using Radians and Degrees
+			vizPhizOptions.useDegrees = isCheckBoxChecked();
 	});
 }
 
@@ -2310,6 +2438,11 @@ function saveChildrensStates(parentComposite){
 //an example of using mouse events on a mouse
 Events.on(mouseConstraint, 'mousemove', function(event) {
     var mousePosition = event.mouse.position;
+    if(mouseType == measureMouse && measuringWorld){
+        newW = mousePosition.x;
+        newH = mousePosition.y;
+        return;
+    }
     if(ctrlPressed && draggingWorld){
         var translate = Matter.Vector.sub({x:newW, y:newH}, mousePosition);
         Bounds.translate(render.bounds, translate);
@@ -2367,12 +2500,12 @@ Events.on(mouseConstraint, 'mousemove', function(event) {
 		}
 		return;
 	} else if (mouseType === moveMouse && draggingVelocity){
-        var Vx = (mousePosition.x - currentBody.position.x) / vizPhizOptions.velocityVectorScale;
-        var Vy = (mousePosition.y - currentBody.position.y) / vizPhizOptions.velocityVectorScale;
-        Matter.Body.setVelocity(currentBody, Matter.Vector.create(Vx, Vy));
+        var drawVel = Vector.div(Vector.sub(mousePosition, currentBody.position), vizPhizOptions.velocityVectorScale);
+        drawVel = convertToMatterTimeScale(drawVel);
+        Matter.Body.setVelocity(currentBody, drawVel);
 			state = getInitialState(currentBody.id);
-			state.Vx = Vx;
-			state.Vy = Vy;
+			state.Vx = drawVel.x;
+			state.Vy = drawVel.y;
     }
 	if (mouseType === conMouse) {
 		newW = mousePosition.x;
@@ -2676,8 +2809,12 @@ Events.on(render, 'afterRender', function() {
 
                         pen.globalAlpha = 0.2;
                         pen.strokeStyle = "white";
-                        if(render.options.showVelocity)
-                            drawVector(state.x,state.y,state.Vx * vizPhizOptions.velocityVectorScale, state.Vy * vizPhizOptions.velocityVectorScale, vizPhizOptions.velocityVectorColor);
+                        if(render.options.showVelocity){
+                            var displayVel = Vector.create(state.Vx, state.Vy);
+                            displayVel = convertFromMatterTimeScale(displayVel);
+                            displayVel = Vector.mult(displayVel, vizPhizOptions.velocityVectorScale);
+                            drawVector(state.x,state.y, displayVel.x, displayVel.y, vizPhizOptions.velocityVectorColor);
+                        }
                         pen.globalAlpha = 1;
                     }
                 }	
@@ -2707,7 +2844,9 @@ Events.on(render, 'afterRender', function() {
     });
     if(render.options.showVelocity)
         bodies.forEach(function(body){
-            drawVector(body.position.x, body.position.y, body.velocity.x * vizPhizOptions.velocityVectorScale, body.velocity.y * vizPhizOptions.velocityVectorScale, vizPhizOptions.velocityVectorColor);      
+            var displayVel = convertFromMatterTimeScale(body.velocity);
+            displayVel = Vector.mult(displayVel, vizPhizOptions.velocityVectorScale);
+            drawVector(body.position.x, body.position.y, displayVel.x, displayVel.y, vizPhizOptions.velocityVectorColor);     
         });
     
     fixedBodies.forEach(function(fixedBody){
@@ -2749,7 +2888,10 @@ Events.on(render, 'afterRender', function() {
 			pen.strokeStyle = "red";
 			pen.font = "20px Georgia";
             var angle = PosAngleFromMatter(currentBody.angle + rotationAngle);
-			pen.strokeText("Angle: " + roundOffDecimals(angle) + " rad", currentBody.position.x + 5, currentBody.bounds.max.y + 20);
+            if(vizPhizOptions.useDegrees)
+                pen.strokeText("Angle: " + roundOffDecimals(Math.toDegrees(angle)) + " deg", currentBody.position.x + 5, currentBody.bounds.max.y + 20);
+            else 
+                pen.strokeText("Angle: " + roundOffDecimals(angle) + " rad", currentBody.position.x + 5, currentBody.bounds.max.y + 20);
 			pen.stroke();
 			pen.globalAlpha = 0.2;
 			pen.fill();
@@ -2802,7 +2944,7 @@ Events.on(render, 'afterRender', function() {
         pen.beginPath();
         pen.strokeStyle = "red";
         pen.font = "20px Georgia";
-        var displayVel = VectorFromMatter(currentBody.velocity);
+        var displayVel = convertFromMatterVelocity(currentBody.velocity);
         pen.strokeText("Velocity: " + roundOffDecimals(displayVel.x) + " m/s x, " + roundOffDecimals(displayVel.y) + " m/s y", currentBody.position.x + 5, currentBody.bounds.max.y + 20);
         pen.stroke();
     }
@@ -2869,6 +3011,16 @@ Events.on(render, 'afterRender', function() {
         drawFatVector(currentForce.position.x + body.position.x, currentForce.position.y + body.position.y, currentForce.force.x * vizPhizOptions.forceVectorScale, currentForce.force.y * vizPhizOptions.forceVectorScale, vizPhizOptions.forceVectorColor); 
 		pen.stroke();
 	}
+    if (measuringWorld){
+        pen.beginPath();
+		pen.strokeStyle = "blue";
+        pen.font = "20px Georgia";
+        pen.moveTo(newX, newY);
+        pen.lineTo(newW, newH);
+        var distance = VectorFromMatter(Matter.Vector.create(newW - newX, newH - newY));
+        pen.strokeText("Distance: " + roundOffDecimals(Vector.magnitude(distance)) + " m", (newX + newW) / 2, (newY + newH) / 2);
+        pen.stroke();
+    }
     
      Render.endViewTransform(render);
 
